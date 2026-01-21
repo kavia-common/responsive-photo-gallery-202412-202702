@@ -7,6 +7,7 @@ import "./App.css";
  * - Click image to open modal viewer
  * - Keyboard accessible (Esc to close, arrows to navigate)
  * - Favorites (Step 01.05): heart toggles, persisted via localStorage, and a favorites-only view.
+ * - Add image (Step 01.06): client-only add image via URL + optional local file upload (in-memory).
  */
 
 /**
@@ -124,6 +125,39 @@ function makePhotoUrl(seed, width, height) {
   return `https://picsum.photos/seed/${encodeURIComponent(seed)}/${width}/${height}`;
 }
 
+/**
+ * Step 01.06 helpers: validate/normalize external URLs and create client-only items.
+ * We keep it conservative (http/https only) to avoid "javascript:" and similar schemes.
+ */
+function normalizeHttpUrl(value) {
+  try {
+    const url = new URL(String(value).trim());
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function makeClientPhoto({ title, url, source }) {
+  const id = `client:${Date.now()}:${Math.random().toString(16).slice(2)}`;
+  const safeTitle = String(title || "User image").trim() || "User image";
+  return {
+    id,
+    title: safeTitle,
+    caption: source === "file" ? "Added from local file (client-only)." : "Added from URL (client-only).",
+    photographer: "You",
+    tags: ["User"],
+    metadata: {
+      source: source === "file" ? "local file (in-memory)" : "url",
+      added: new Date().toLocaleString(),
+    },
+    thumbUrl: url,
+    fullUrl: url,
+    _clientOnly: true,
+  };
+}
+
 const FAVORITES_STORAGE_KEY = "pg:favorites:v1";
 
 /**
@@ -153,8 +187,8 @@ function writeFavoritesToStorage(favoritesSet) {
 
 // PUBLIC_INTERFACE
 function App() {
-  /** Build gallery items once. */
-  const photos = useMemo(() => {
+  /** Build initial gallery items once. */
+  const seededPhotos = useMemo(() => {
     // Vary heights a bit to make the grid feel more gallery-like.
     const heights = [900, 820, 760, 980, 840, 920];
     return PHOTO_SEED.map((p, idx) => {
@@ -168,6 +202,9 @@ function App() {
     });
   }, []);
 
+  // Step 01.06 - Gallery list is now stateful so we can append client-only items.
+  const [photos, setPhotos] = useState(() => seededPhotos);
+
   const [query, setQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState(() => new Set());
   const [activeIndex, setActiveIndex] = useState(null); // number | null
@@ -176,10 +213,25 @@ function App() {
   const [favoriteIds, setFavoriteIds] = useState(() => readFavoritesFromStorage());
   const [favoritesOnly, setFavoritesOnly] = useState(false);
 
+  // Step 01.06 - Add image UI state
+  const [addUrl, setAddUrl] = useState("");
+  const [addTitle, setAddTitle] = useState("");
+  const [addFile, setAddFile] = useState(null); // File | null
+  const [addStatus, setAddStatus] = useState({ kind: "idle", message: "" }); // {kind:'idle'|'error'|'success', message:string}
+  const clientObjectUrlsRef = useRef([]); // track object URLs so we can revoke on unmount
+
   // Keep localStorage in sync.
   useEffect(() => {
     writeFavoritesToStorage(favoriteIds);
   }, [favoriteIds]);
+
+  // Cleanup any in-memory object URLs we created (local-file uploads).
+  useEffect(() => {
+    return () => {
+      clientObjectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      clientObjectUrlsRef.current = [];
+    };
+  }, []);
 
   const availableTags = useMemo(() => {
     const set = new Set();
@@ -366,6 +418,68 @@ function App() {
 
   const favoritesCount = favoriteIds.size;
 
+  // PUBLIC_INTERFACE
+  const addImageToGallery = ({ source }) => {
+    setAddStatus({ kind: "idle", message: "" });
+
+    if (source === "url") {
+      const normalized = normalizeHttpUrl(addUrl);
+      if (!normalized) {
+        setAddStatus({ kind: "error", message: "Please enter a valid http(s) image URL." });
+        return;
+      }
+
+      const title = addTitle.trim() || "Image from URL";
+      const item = makeClientPhoto({ title, url: normalized, source: "url" });
+
+      // Prepend so it appears immediately at the top.
+      setPhotos((prev) => [item, ...prev]);
+
+      // Auto-select "User" tag so the user can immediately see what they added (and it matches filter options).
+      setSelectedTags((prev) => {
+        const next = new Set(prev);
+        next.add("User");
+        return next;
+      });
+
+      setAddUrl("");
+      setAddTitle("");
+      setAddFile(null);
+      setAddStatus({ kind: "success", message: `Added "${item.title}" from URL (client-only).` });
+      return;
+    }
+
+    if (source === "file") {
+      if (!addFile) {
+        setAddStatus({ kind: "error", message: "Please choose a local image file first." });
+        return;
+      }
+
+      if (!addFile.type || !addFile.type.startsWith("image/")) {
+        setAddStatus({ kind: "error", message: "That file does not look like an image. Please choose an image file." });
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(addFile);
+      clientObjectUrlsRef.current.push(objectUrl);
+
+      const title = addTitle.trim() || addFile.name || "Local image";
+      const item = makeClientPhoto({ title, url: objectUrl, source: "file" });
+
+      setPhotos((prev) => [item, ...prev]);
+      setSelectedTags((prev) => {
+        const next = new Set(prev);
+        next.add("User");
+        return next;
+      });
+
+      setAddUrl("");
+      setAddTitle("");
+      setAddFile(null);
+      setAddStatus({ kind: "success", message: `Added "${item.title}" from local file (client-only).` });
+    }
+  };
+
   return (
     <div className="App">
       <header className="pg-header">
@@ -425,6 +539,100 @@ function App() {
                 </span>
                 <span className="pg-favtoggle__text">{favoritesOnly ? "Favorites" : "All"}</span>
               </button>
+            </div>
+
+            {/* Step 01.06 - Add image UI (client-only) */}
+            <div className="pg-add" role="group" aria-label="Add image (client-only)">
+              <div className="pg-add__row">
+                <label className="pg-add__field">
+                  <span className="pg-add__label">Title (optional)</span>
+                  <input
+                    className="pg-add__input"
+                    value={addTitle}
+                    onChange={(e) => setAddTitle(e.target.value)}
+                    placeholder="e.g., My sunset photo"
+                    aria-label="Image title"
+                  />
+                </label>
+
+                <label className="pg-add__field">
+                  <span className="pg-add__label">Image URL</span>
+                  <input
+                    className="pg-add__input"
+                    value={addUrl}
+                    onChange={(e) => setAddUrl(e.target.value)}
+                    placeholder="https://example.com/image.jpg"
+                    inputMode="url"
+                    aria-label="Image URL"
+                  />
+                </label>
+
+                <div className="pg-add__actions" aria-label="Add image actions">
+                  <button
+                    type="button"
+                    className="pg-add__btn pg-add__btn--primary"
+                    onClick={() => addImageToGallery({ source: "url" })}
+                    disabled={!addUrl.trim()}
+                    title="Add image from URL"
+                  >
+                    Add URL
+                  </button>
+                </div>
+              </div>
+
+              <div className="pg-add__row" style={{ marginTop: 10 }}>
+                <label className="pg-add__field">
+                  <span className="pg-add__label">Or upload a local file</span>
+                  <input
+                    className="pg-add__input"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                      setAddFile(file);
+                    }}
+                    aria-label="Upload an image file"
+                  />
+                  <p className="pg-add__filehint">
+                    Client-only: the file stays in-memory (object URL) and is not uploaded anywhere.
+                  </p>
+                </label>
+
+                <div className="pg-add__actions">
+                  <button
+                    type="button"
+                    className="pg-add__btn pg-add__btn--primary"
+                    onClick={() => addImageToGallery({ source: "file" })}
+                    disabled={!addFile}
+                    title="Add image from local file"
+                  >
+                    Add File
+                  </button>
+                  <button
+                    type="button"
+                    className="pg-add__btn"
+                    onClick={() => {
+                      setAddUrl("");
+                      setAddTitle("");
+                      setAddFile(null);
+                      setAddStatus({ kind: "idle", message: "" });
+                    }}
+                    title="Clear add-image inputs"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              {addStatus.kind !== "idle" ? (
+                <p
+                  className={`pg-add__status ${addStatus.kind === "error" ? "pg-add__status--error" : ""}`}
+                  role={addStatus.kind === "error" ? "alert" : "status"}
+                  aria-live="polite"
+                >
+                  {addStatus.message}
+                </p>
+              ) : null}
             </div>
 
             {availableTags.length > 0 ? (
