@@ -1,0 +1,4 @@
+{
+    "command": "npm install",
+    "working_directory": "/home/kavia/workspace/code-generation/responsive-photo-gallery-202412-202702/photo_gallery_frontend"
+}
