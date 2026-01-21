@@ -8,20 +8,99 @@ import "./App.css";
  * - Keyboard accessible (Esc to close, arrows to navigate)
  */
 
-/** Local placeholder images (no backend). */
+/**
+ * Local placeholder images (no backend).
+ *
+ * Data model (Step 01.03):
+ * - title: short title shown in grid + modal header
+ * - caption: longer human-friendly description shown in grid + modal body
+ * - metadata: optional key/value details shown in the modal (and a small hint in the grid)
+ */
 const PHOTO_SEED = [
-  { id: "sea", title: "Sea", photographer: "Kavia Studio" },
-  { id: "forest", title: "Forest", photographer: "Kavia Studio" },
-  { id: "city", title: "City", photographer: "Kavia Studio" },
-  { id: "mountain", title: "Mountain", photographer: "Kavia Studio" },
-  { id: "desert", title: "Desert", photographer: "Kavia Studio" },
-  { id: "aurora", title: "Aurora", photographer: "Kavia Studio" },
-  { id: "flowers", title: "Flowers", photographer: "Kavia Studio" },
-  { id: "waterfall", title: "Waterfall", photographer: "Kavia Studio" },
-  { id: "architecture", title: "Architecture", photographer: "Kavia Studio" },
-  { id: "night", title: "Night", photographer: "Kavia Studio" },
-  { id: "lake", title: "Lake", photographer: "Kavia Studio" },
-  { id: "canyon", title: "Canyon", photographer: "Kavia Studio" },
+  {
+    id: "sea",
+    title: "Sea",
+    caption: "Calm ocean tones with soft horizon light.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Coastline", camera: "KaviaCam X1", lens: "35mm", year: "2024" },
+  },
+  {
+    id: "forest",
+    title: "Forest",
+    caption: "Evergreen canopy with filtered morning sun.",
+    photographer: "Kavia Studio",
+    metadata: { location: "National Park", camera: "KaviaCam X1", year: "2024" },
+  },
+  {
+    id: "city",
+    title: "City",
+    caption: "Clean lines and depth—an urban study in contrast.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Downtown", camera: "KaviaCam X2", lens: "24mm", year: "2023" },
+  },
+  {
+    id: "mountain",
+    title: "Mountain",
+    caption: "Ridgelines and clouds—high altitude serenity.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Highlands", camera: "KaviaCam X2", year: "2023" },
+  },
+  {
+    id: "desert",
+    title: "Desert",
+    caption: "Dunes shaped by wind with warm, golden shadows.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Dune Field", camera: "KaviaCam X1", lens: "50mm", year: "2022" },
+  },
+  {
+    id: "aurora",
+    title: "Aurora",
+    caption: "Night sky ribbons with a gentle glow.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Northern Lights", camera: "KaviaCam X3", year: "2024" },
+  },
+  {
+    id: "flowers",
+    title: "Flowers",
+    caption: "Bright petals with soft background bokeh.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Botanical Garden", camera: "KaviaCam X2", lens: "85mm" },
+  },
+  {
+    id: "waterfall",
+    title: "Waterfall",
+    caption: "A smooth cascade framed by dark stone.",
+    photographer: "Kavia Studio",
+    metadata: { location: "River Gorge", camera: "KaviaCam X1", year: "2022" },
+  },
+  {
+    id: "architecture",
+    title: "Architecture",
+    caption: "Modern geometry and repeating patterns in light.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Civic Center", camera: "KaviaCam X3", lens: "24mm" },
+  },
+  {
+    id: "night",
+    title: "Night",
+    caption: "Neon ambience—low light with crisp highlights.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Night Market", camera: "KaviaCam X3", year: "2023" },
+  },
+  {
+    id: "lake",
+    title: "Lake",
+    caption: "Mirror reflections with a still, quiet mood.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Alpine Lake", camera: "KaviaCam X2", year: "2024" },
+  },
+  {
+    id: "canyon",
+    title: "Canyon",
+    caption: "Layered stone textures—time etched into color.",
+    photographer: "Kavia Studio",
+    metadata: { location: "Canyon Rim", camera: "KaviaCam X1", lens: "35mm", year: "2022" },
+  },
 ];
 
 /**
@@ -222,23 +301,33 @@ function App() {
         </section>
 
         <section className="pg-grid" aria-label="Photo grid">
-          {filteredPhotos.map((photo, idx) => (
-            <button
-              key={photo.id}
-              type="button"
-              className="pg-card"
-              onClick={() => openModalAt(idx)}
-              aria-label={`Open photo: ${photo.title}`}
-            >
-              <div className="pg-card__media">
-                <img className="pg-card__img" src={photo.thumbUrl} alt={photo.title} loading="lazy" />
-              </div>
-              <div className="pg-card__meta">
-                <div className="pg-card__title">{photo.title}</div>
-                <div className="pg-card__sub">{photo.photographer}</div>
-              </div>
-            </button>
-          ))}
+          {filteredPhotos.map((photo, idx) => {
+            const metadataCount =
+              photo.metadata && typeof photo.metadata === "object" ? Object.keys(photo.metadata).length : 0;
+
+            return (
+              <button
+                key={photo.id}
+                type="button"
+                className="pg-card"
+                onClick={() => openModalAt(idx)}
+                aria-label={`Open photo: ${photo.title}`}
+              >
+                <div className="pg-card__media">
+                  <img className="pg-card__img" src={photo.thumbUrl} alt={photo.title} loading="lazy" />
+                </div>
+                <div className="pg-card__meta">
+                  <div className="pg-card__title">{photo.title}</div>
+                  <div className="pg-card__sub">{photo.caption || photo.photographer}</div>
+                  {metadataCount > 0 ? (
+                    <div className="pg-card__sub" aria-label="Photo metadata available">
+                      {metadataCount} detail{metadataCount === 1 ? "" : "s"}
+                    </div>
+                  ) : null}
+                </div>
+              </button>
+            );
+          })}
           {filteredPhotos.length === 0 ? (
             <div className="pg-empty" role="status" aria-live="polite">
               <h2 className="pg-empty__title">No results</h2>
@@ -257,6 +346,7 @@ function App() {
               <div className="pg-modal__caption">
                 <div className="pg-modal__title">{activePhoto?.title}</div>
                 <div className="pg-modal__sub">{activePhoto?.photographer}</div>
+                {activePhoto?.caption ? <div className="pg-modal__sub">{activePhoto.caption}</div> : null}
               </div>
 
               <div className="pg-modal__actions">
@@ -319,6 +409,19 @@ function App() {
                 </button>
               </div>
             </figure>
+
+            {activePhoto?.metadata && typeof activePhoto.metadata === "object" ? (
+              <div className="pg-modal__meta" aria-label="Photo details">
+                <dl className="pg-modal__metalist">
+                  {Object.entries(activePhoto.metadata).map(([key, value]) => (
+                    <div key={key} className="pg-modal__metarow">
+                      <dt className="pg-modal__metakey">{key}</dt>
+                      <dd className="pg-modal__metaval">{String(value)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}

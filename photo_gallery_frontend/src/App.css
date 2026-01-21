@@ -406,6 +406,43 @@
   display: block;
 }
 
+/* Modal metadata (Step 01.03) */
+.pg-modal__meta {
+  padding: 12px 14px 14px;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.pg-modal__metalist {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.pg-modal__metarow {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.pg-modal__metakey {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pg-modal__metaval {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 /* Modal next/prev overlay controls */
 .pg-modal__nav {
   position: absolute;
@@ -490,5 +527,10 @@
     width: 40px;
     height: 40px;
     font-size: 18px;
+  }
+
+  .pg-modal__metarow {
+    grid-template-columns: 1fr;
+    gap: 2px;
   }
 }
