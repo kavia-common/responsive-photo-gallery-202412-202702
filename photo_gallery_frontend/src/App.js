@@ -74,20 +74,42 @@ function App() {
   const closeButtonRef = useRef(null);
   const lastActiveElementRef = useRef(null);
 
-  // Keyboard shortcuts: Esc closes, arrows navigate.
+  // Keyboard shortcuts (modal only): Esc closes, arrows navigate.
+  // Kept in a single effect so focus save/restore remains correct.
   useEffect(() => {
     if (!modalOpen) return;
 
+    // Save focus *before* we move it into the dialog.
     lastActiveElementRef.current = document.activeElement;
+
     // Focus close button after open for accessibility.
+    // setTimeout(0) avoids focusing before the element is in the DOM.
     window.setTimeout(() => closeButtonRef.current?.focus(), 0);
 
+    const isTypingContext = (target) => {
+      if (!target || !(target instanceof HTMLElement)) return false;
+      const tag = target.tagName?.toLowerCase();
+      return (
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select" ||
+        target.isContentEditable === true
+      );
+    };
+
     const onKeyDown = (e) => {
+      // Avoid stealing arrow keys from inputs/textareas/contenteditable.
+      // Esc should still close from anywhere (common modal behavior).
+      const typing = isTypingContext(e.target);
+
       if (e.key === "Escape") {
         e.preventDefault();
         setActiveIndex(null);
         return;
       }
+
+      if (typing) return;
+
       if (e.key === "ArrowRight") {
         e.preventDefault();
         setActiveIndex((prev) => {
@@ -96,6 +118,7 @@ function App() {
         });
         return;
       }
+
       if (e.key === "ArrowLeft") {
         e.preventDefault();
         setActiveIndex((prev) => {
@@ -105,9 +128,10 @@ function App() {
       }
     };
 
-    document.addEventListener("keydown", onKeyDown);
+    // Capture phase makes the shortcuts reliable even if inner elements stop propagation.
+    document.addEventListener("keydown", onKeyDown, { capture: true });
     return () => {
-      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("keydown", onKeyDown, { capture: true });
       // Restore focus to whichever element opened the modal.
       const el = lastActiveElementRef.current;
       if (el && typeof el.focus === "function") el.focus();
