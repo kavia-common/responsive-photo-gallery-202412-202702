@@ -22,6 +22,7 @@ const PHOTO_SEED = [
     title: "Sea",
     caption: "Calm ocean tones with soft horizon light.",
     photographer: "Kavia Studio",
+    tags: ["Nature", "Water", "Coast"],
     metadata: { location: "Coastline", camera: "KaviaCam X1", lens: "35mm", year: "2024" },
   },
   {
@@ -29,6 +30,7 @@ const PHOTO_SEED = [
     title: "Forest",
     caption: "Evergreen canopy with filtered morning sun.",
     photographer: "Kavia Studio",
+    tags: ["Nature", "Trees", "Green"],
     metadata: { location: "National Park", camera: "KaviaCam X1", year: "2024" },
   },
   {
@@ -36,6 +38,7 @@ const PHOTO_SEED = [
     title: "City",
     caption: "Clean lines and depth—an urban study in contrast.",
     photographer: "Kavia Studio",
+    tags: ["Urban", "Architecture"],
     metadata: { location: "Downtown", camera: "KaviaCam X2", lens: "24mm", year: "2023" },
   },
   {
@@ -43,6 +46,7 @@ const PHOTO_SEED = [
     title: "Mountain",
     caption: "Ridgelines and clouds—high altitude serenity.",
     photographer: "Kavia Studio",
+    tags: ["Nature", "Mountains", "Adventure"],
     metadata: { location: "Highlands", camera: "KaviaCam X2", year: "2023" },
   },
   {
@@ -50,6 +54,7 @@ const PHOTO_SEED = [
     title: "Desert",
     caption: "Dunes shaped by wind with warm, golden shadows.",
     photographer: "Kavia Studio",
+    tags: ["Nature", "Desert", "Sand"],
     metadata: { location: "Dune Field", camera: "KaviaCam X1", lens: "50mm", year: "2022" },
   },
   {
@@ -57,6 +62,7 @@ const PHOTO_SEED = [
     title: "Aurora",
     caption: "Night sky ribbons with a gentle glow.",
     photographer: "Kavia Studio",
+    tags: ["Night", "Nature", "Sky"],
     metadata: { location: "Northern Lights", camera: "KaviaCam X3", year: "2024" },
   },
   {
@@ -64,6 +70,7 @@ const PHOTO_SEED = [
     title: "Flowers",
     caption: "Bright petals with soft background bokeh.",
     photographer: "Kavia Studio",
+    tags: ["Nature", "Plants", "Macro"],
     metadata: { location: "Botanical Garden", camera: "KaviaCam X2", lens: "85mm" },
   },
   {
@@ -71,6 +78,7 @@ const PHOTO_SEED = [
     title: "Waterfall",
     caption: "A smooth cascade framed by dark stone.",
     photographer: "Kavia Studio",
+    tags: ["Nature", "Water", "Adventure"],
     metadata: { location: "River Gorge", camera: "KaviaCam X1", year: "2022" },
   },
   {
@@ -78,6 +86,7 @@ const PHOTO_SEED = [
     title: "Architecture",
     caption: "Modern geometry and repeating patterns in light.",
     photographer: "Kavia Studio",
+    tags: ["Architecture", "Design", "Urban"],
     metadata: { location: "Civic Center", camera: "KaviaCam X3", lens: "24mm" },
   },
   {
@@ -85,6 +94,7 @@ const PHOTO_SEED = [
     title: "Night",
     caption: "Neon ambience—low light with crisp highlights.",
     photographer: "Kavia Studio",
+    tags: ["Night", "Urban", "Neon"],
     metadata: { location: "Night Market", camera: "KaviaCam X3", year: "2023" },
   },
   {
@@ -92,6 +102,7 @@ const PHOTO_SEED = [
     title: "Lake",
     caption: "Mirror reflections with a still, quiet mood.",
     photographer: "Kavia Studio",
+    tags: ["Nature", "Water", "Calm"],
     metadata: { location: "Alpine Lake", camera: "KaviaCam X2", year: "2024" },
   },
   {
@@ -99,6 +110,7 @@ const PHOTO_SEED = [
     title: "Canyon",
     caption: "Layered stone textures—time etched into color.",
     photographer: "Kavia Studio",
+    tags: ["Nature", "Desert", "Geology"],
     metadata: { location: "Canyon Rim", camera: "KaviaCam X1", lens: "35mm", year: "2022" },
   },
 ];
@@ -129,17 +141,58 @@ function App() {
   }, []);
 
   const [query, setQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState(() => new Set());
   const [activeIndex, setActiveIndex] = useState(null); // number | null
+
+  const availableTags = useMemo(() => {
+    const set = new Set();
+    photos.forEach((p) => {
+      if (Array.isArray(p.tags)) {
+        p.tags.forEach((t) => set.add(String(t)));
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [photos]);
 
   const filteredPhotos = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return photos;
+    const hasQuery = Boolean(q);
+    const hasTagFilter = selectedTags.size > 0;
+
+    if (!hasQuery && !hasTagFilter) return photos;
+
     return photos.filter((p) => {
-      return (
-        p.title.toLowerCase().includes(q) || p.photographer.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
-      );
+      // Search match
+      const tagText = Array.isArray(p.tags) ? p.tags.join(" ").toLowerCase() : "";
+      const metadataText =
+        p.metadata && typeof p.metadata === "object"
+          ? Object.entries(p.metadata)
+              .map(([k, v]) => `${k}:${String(v)}`)
+              .join(" ")
+              .toLowerCase()
+          : "";
+
+      const matchesQuery = !hasQuery
+        ? true
+        : [
+            p.title,
+            p.caption,
+            p.photographer,
+            p.id,
+            tagText,
+            metadataText,
+          ]
+            .filter(Boolean)
+            .some((field) => String(field).toLowerCase().includes(q));
+
+      // Tag match (OR across selected tags)
+      const matchesTags = !hasTagFilter
+        ? true
+        : Array.isArray(p.tags) && p.tags.some((t) => selectedTags.has(String(t)));
+
+      return matchesQuery && matchesTags;
     });
-  }, [photos, query]);
+  }, [photos, query, selectedTags]);
 
   const modalOpen = activeIndex !== null;
 
@@ -235,6 +288,19 @@ function App() {
   };
 
   // PUBLIC_INTERFACE
+  const toggleTag = (tag) => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  };
+
+  // PUBLIC_INTERFACE
+  const clearTags = () => setSelectedTags(new Set());
+
+  // PUBLIC_INTERFACE
   const closeModal = () => setActiveIndex(null);
 
   // PUBLIC_INTERFACE
@@ -289,14 +355,53 @@ function App() {
       </header>
 
       <main className="pg-main">
-        <section className="pg-toolbar" aria-label="Gallery info">
-          <div className="pg-pill">
-            <span className="pg-pill__label">Showing</span>{" "}
-            <strong className="pg-pill__value">{filteredPhotos.length}</strong>{" "}
-            <span className="pg-pill__label">photos</span>
+        <section className="pg-toolbar" aria-label="Gallery filters and info">
+          <div className="pg-toolbar__left">
+            <div className="pg-pill">
+              <span className="pg-pill__label">Showing</span>{" "}
+              <strong className="pg-pill__value">{filteredPhotos.length}</strong>{" "}
+              <span className="pg-pill__label">photos</span>
+            </div>
+
+            {availableTags.length > 0 ? (
+              <div className="pg-filters" role="group" aria-label="Filter by tag">
+                <div className="pg-filters__label">Tags</div>
+                <div className="pg-filters__chips" aria-label="Tag filter chips">
+                  {availableTags.map((tag) => {
+                    const selected = selectedTags.has(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        className={`pg-chip ${selected ? "pg-chip--active" : ""}`}
+                        aria-pressed={selected}
+                        onClick={() => toggleTag(tag)}
+                        title={selected ? `Remove filter: ${tag}` : `Filter by: ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedTags.size > 0 ? (
+                  <button type="button" className="pg-linkbtn" onClick={clearTags}>
+                    Clear tags
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
+
           <p className="pg-hint">
             Tip: Click a photo to open. Use <kbd>Esc</kbd> to close, <kbd>←</kbd>/<kbd>→</kbd> to navigate.
+            {selectedTags.size > 0 ? (
+              <>
+                {" "}
+                <span className="pg-hint__sep">·</span> Filters:{" "}
+                <span className="pg-hint__filters">{Array.from(selectedTags).join(", ")}</span>
+              </>
+            ) : null}
           </p>
         </section>
 
