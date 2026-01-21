@@ -6,6 +6,7 @@ import "./App.css";
  * - Responsive masonry-like grid (CSS grid with auto-fill)
  * - Click image to open modal viewer
  * - Keyboard accessible (Esc to close, arrows to navigate)
+ * - Favorites (Step 01.05): heart toggles, persisted via localStorage, and a favorites-only view.
  */
 
 /**
@@ -123,6 +124,33 @@ function makePhotoUrl(seed, width, height) {
   return `https://picsum.photos/seed/${encodeURIComponent(seed)}/${width}/${height}`;
 }
 
+const FAVORITES_STORAGE_KEY = "pg:favorites:v1";
+
+/**
+ * Parse favorites set from localStorage.
+ * This must be resilient to malformed values and environments where storage is blocked.
+ */
+function readFavoritesFromStorage() {
+  try {
+    const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.map((v) => String(v)));
+  } catch {
+    return new Set();
+  }
+}
+
+function writeFavoritesToStorage(favoritesSet) {
+  try {
+    const arr = Array.from(favoritesSet);
+    window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(arr));
+  } catch {
+    // Ignore storage write errors (e.g., private mode restrictions).
+  }
+}
+
 // PUBLIC_INTERFACE
 function App() {
   /** Build gallery items once. */
@@ -144,6 +172,15 @@ function App() {
   const [selectedTags, setSelectedTags] = useState(() => new Set());
   const [activeIndex, setActiveIndex] = useState(null); // number | null
 
+  // Step 01.05 - Favorites state
+  const [favoriteIds, setFavoriteIds] = useState(() => readFavoritesFromStorage());
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+
+  // Keep localStorage in sync.
+  useEffect(() => {
+    writeFavoritesToStorage(favoriteIds);
+  }, [favoriteIds]);
+
   const availableTags = useMemo(() => {
     const set = new Set();
     photos.forEach((p) => {
@@ -158,10 +195,14 @@ function App() {
     const q = query.trim().toLowerCase();
     const hasQuery = Boolean(q);
     const hasTagFilter = selectedTags.size > 0;
+    const hasFavFilter = favoritesOnly;
 
-    if (!hasQuery && !hasTagFilter) return photos;
+    if (!hasQuery && !hasTagFilter && !hasFavFilter) return photos;
 
     return photos.filter((p) => {
+      // Favorites match
+      const matchesFavorites = !hasFavFilter ? true : favoriteIds.has(String(p.id));
+
       // Search match
       const tagText = Array.isArray(p.tags) ? p.tags.join(" ").toLowerCase() : "";
       const metadataText =
@@ -174,14 +215,7 @@ function App() {
 
       const matchesQuery = !hasQuery
         ? true
-        : [
-            p.title,
-            p.caption,
-            p.photographer,
-            p.id,
-            tagText,
-            metadataText,
-          ]
+        : [p.title, p.caption, p.photographer, p.id, tagText, metadataText]
             .filter(Boolean)
             .some((field) => String(field).toLowerCase().includes(q));
 
@@ -190,9 +224,9 @@ function App() {
         ? true
         : Array.isArray(p.tags) && p.tags.some((t) => selectedTags.has(String(t)));
 
-      return matchesQuery && matchesTags;
+      return matchesFavorites && matchesQuery && matchesTags;
     });
-  }, [photos, query, selectedTags]);
+  }, [photos, query, selectedTags, favoritesOnly, favoriteIds]);
 
   const modalOpen = activeIndex !== null;
 
@@ -319,6 +353,19 @@ function App() {
     });
   };
 
+  // PUBLIC_INTERFACE
+  const toggleFavorite = (photoId) => {
+    const id = String(photoId);
+    setFavoriteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const favoritesCount = favoriteIds.size;
+
   return (
     <div className="App">
       <header className="pg-header">
@@ -363,6 +410,23 @@ function App() {
               <span className="pg-pill__label">photos</span>
             </div>
 
+            <div className="pg-pill" role="group" aria-label="Favorites filter">
+              <span className="pg-pill__label">Favorites</span>
+              <strong className="pg-pill__value">{favoritesCount}</strong>
+              <button
+                type="button"
+                className={`pg-favtoggle ${favoritesOnly ? "pg-favtoggle--active" : ""}`}
+                aria-pressed={favoritesOnly}
+                onClick={() => setFavoritesOnly((v) => !v)}
+                title={favoritesOnly ? "Show all photos" : "Show favorites only"}
+              >
+                <span className="pg-favtoggle__icon" aria-hidden="true">
+                  ♥
+                </span>
+                <span className="pg-favtoggle__text">{favoritesOnly ? "Favorites" : "All"}</span>
+              </button>
+            </div>
+
             {availableTags.length > 0 ? (
               <div className="pg-filters" role="group" aria-label="Filter by tag">
                 <div className="pg-filters__label">Tags</div>
@@ -395,6 +459,12 @@ function App() {
 
           <p className="pg-hint">
             Tip: Click a photo to open. Use <kbd>Esc</kbd> to close, <kbd>←</kbd>/<kbd>→</kbd> to navigate.
+            {favoritesOnly ? (
+              <>
+                {" "}
+                <span className="pg-hint__sep">·</span> Viewing: <span className="pg-hint__filters">Favorites</span>
+              </>
+            ) : null}
             {selectedTags.size > 0 ? (
               <>
                 {" "}
@@ -409,6 +479,7 @@ function App() {
           {filteredPhotos.map((photo, idx) => {
             const metadataCount =
               photo.metadata && typeof photo.metadata === "object" ? Object.keys(photo.metadata).length : 0;
+            const isFav = favoriteIds.has(String(photo.id));
 
             return (
               <button
@@ -420,6 +491,23 @@ function App() {
               >
                 <div className="pg-card__media">
                   <img className="pg-card__img" src={photo.thumbUrl} alt={photo.title} loading="lazy" />
+                  <button
+                    type="button"
+                    className={`pg-heart ${isFav ? "pg-heart--active" : ""}`}
+                    aria-pressed={isFav}
+                    aria-label={isFav ? `Remove ${photo.title} from favorites` : `Add ${photo.title} to favorites`}
+                    title={isFav ? "Unfavorite" : "Favorite"}
+                    onClick={(e) => {
+                      // Prevent opening modal when clicking heart.
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleFavorite(photo.id);
+                    }}
+                  >
+                    <span className="pg-heart__icon" aria-hidden="true">
+                      ♥
+                    </span>
+                  </button>
                 </div>
                 <div className="pg-card__meta">
                   <div className="pg-card__title">{photo.title}</div>
@@ -436,7 +524,9 @@ function App() {
           {filteredPhotos.length === 0 ? (
             <div className="pg-empty" role="status" aria-live="polite">
               <h2 className="pg-empty__title">No results</h2>
-              <p className="pg-empty__desc">Try a different search term.</p>
+              <p className="pg-empty__desc">
+                {favoritesOnly ? "No favorites match your current filters." : "Try a different search term."}
+              </p>
             </div>
           ) : null}
         </section>
@@ -455,6 +545,19 @@ function App() {
               </div>
 
               <div className="pg-modal__actions">
+                <button
+                  type="button"
+                  className={`pg-iconbtn ${favoriteIds.has(String(activePhoto?.id)) ? "pg-iconbtn--fav" : ""}`}
+                  onClick={() => toggleFavorite(activePhoto?.id)}
+                  aria-label={
+                    favoriteIds.has(String(activePhoto?.id))
+                      ? "Remove from favorites"
+                      : "Add to favorites"
+                  }
+                  title={favoriteIds.has(String(activePhoto?.id)) ? "Unfavorite" : "Favorite"}
+                >
+                  ♥
+                </button>
                 <button
                   type="button"
                   className="pg-iconbtn"
