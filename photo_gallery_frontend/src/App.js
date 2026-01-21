@@ -271,6 +271,29 @@ function App() {
 
             <figure className="pg-modal__figure">
               <img className="pg-modal__img" src={activePhoto?.fullUrl} alt={activePhoto?.title || "Selected photo"} />
+
+              <div className="pg-modal__nav" aria-hidden="false">
+                <button
+                  type="button"
+                  className="pg-modal__navbtn"
+                  onClick={goPrev}
+                  disabled={activeIndex <= 0}
+                  aria-label="Previous photo"
+                  title="Previous (←)"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className="pg-modal__navbtn"
+                  onClick={goNext}
+                  disabled={activeIndex >= filteredPhotos.length - 1}
+                  aria-label="Next photo"
+                  title="Next (→)"
+                >
+                  ›
+                </button>
+              </div>
             </figure>
           </div>
         </div>
