@@ -1,0 +1,30 @@
+{
+  "name": "photo_gallery_frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Beginner-level responsive photo gallery with modal viewer (React 17.1).",
+  "dependencies": {
+    "prop-types": "15.8.1",
+    "react": "17.0.2",
+    "react-dom": "17.0.2",
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "PORT=${REACT_APP_PORT:-3000} react-scripts start",
+    "build": "GENERATE_SOURCEMAP=${REACT_APP_ENABLE_SOURCE_MAPS:-true} react-scripts build",
+    "test": "CI=true react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
